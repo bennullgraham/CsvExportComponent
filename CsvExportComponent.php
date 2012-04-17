@@ -48,7 +48,7 @@ class CsvExportComponent extends Component {
 	private $controller = null;
 
 /**
- * Model we are exporting from, set during initialisation
+ * Model we are exporting from, set during export
  * 
  * @var array
  */
