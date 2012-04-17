@@ -24,12 +24,14 @@ are exported and to provide friendly names for fields. If an array
 item is numerically indexed then it is assumed this is a DB field
 and a human-friendly name is generated from it. For example:
 
+	```php
 	$this->CsvExport->setFields(array(
 		'id' => 'User ID',
 		'name',
 		'email',
 		'date_of_birth',	// will result in 'Date Of Birth'
 	));
+	```
 
 Use `$this->CsvExport->export($this->Model);` to
 actually do the export thing. This results in CSV output being
