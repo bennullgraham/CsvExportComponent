@@ -1,5 +1,12 @@
+CakePHP CSV Export 
+====================
+
+What The Devil?
+--------------------
+
 CsvExportComponent will turn your database into text 
-with commas everywhere.
+with commas everywhere. Export data is read page-at-a-time
+to keep memory usage under control.
 
 Usage
 ----------
