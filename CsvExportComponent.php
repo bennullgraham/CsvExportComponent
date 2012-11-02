@@ -126,9 +126,7 @@ class CsvExportComponent extends Component {
 			header('Content-type: text/csv');
 			header('Content-Disposition: attachment; filename="'.$filename.'"');
 		}
-/*var_dump($this->parseFields('slugged')); 
-var_dump($this->parseFields('human'));
-var_dump($this->getContainableModels()); exit();*/
+
 		$params = array(
 			'conditions' => $this->conditions,
 			'fields' => $fields,
