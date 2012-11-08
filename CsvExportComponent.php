@@ -41,14 +41,7 @@ class CsvExportComponent extends Component {
 	public $debug = false;
 
 /**
- * Reference to parent controller
- * 
- * @var Controller
- */
-	private $controller = null;
-
-/**
- * Maximum number of records to retrieve each time
+ * Reference to CakePHP model object
  * 
  * @var array
  */
@@ -96,15 +89,6 @@ class CsvExportComponent extends Component {
  */
 	private $callback = null;
 
-/**
- * CakePHP callback. 
- * 
- * @param Controller controller
- * @access public
- */
-	public function initialize(&$controller) {
-		$this->controller =& $controller;
-	}
 
 /**
  * Reads records from database and sends as CSV output to browser. Records
