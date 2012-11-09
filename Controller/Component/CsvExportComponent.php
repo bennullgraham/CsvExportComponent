@@ -1,5 +1,6 @@
 <?php
 
+App::uses('Field', 'CsvExport.Lib');
 App::uses('Component', 'Controller');
 
 /**
@@ -92,18 +93,26 @@ class CsvExportComponent extends Component {
 
 /**
  * Reads records from database and sends as CSV output to browser. Records
- * are read page-at-a-time and buffered to disk before output. Use
+ * are read page-at-a-time and buffered to disk before output. Use 
  * setConditions() and setFields() to customise output.
- *
+ * 
  * @param Model $model model to export records from
+ * @param array $params array of parameters. Keys include 'filename' and 'download'.
+ *                      With download disabled, export only returns the path to the
+ *                      on-disk CSV file. Enabled, the file contents are sent to the
+ *                      browser.
  * @param string $filename basis of name for file exported to user
- * @return void
+ * @return path to exported CSV, or void
  */
-    public function export($model, $filename=null) {
+    public function export($model, $params=array()) {
+
+        $filename = isset($params['filename']) ? $params['filename'] : null;
+        $download = isset($params['download']) ? $params['download'] : true;
+
         $this->model = $model;
         $order = $this->getOrder();
         $filename = $this->formatFilename($filename);
-
+        
         $fields = $this->parseFields('slugged');
         if (!$this->debug) {
             Configure::write('debug', 0);
@@ -111,7 +120,7 @@ class CsvExportComponent extends Component {
             header('Content-Disposition: attachment; filename="'.$filename.'"');
         }
 
-        $params = array(
+        $findParams = array(
             'conditions' => $this->conditions,
             'fields' => $fields,
             'limit' => $this->limit,
@@ -122,11 +131,17 @@ class CsvExportComponent extends Component {
 
         $this->openDiskBuffer();
         $this->writeHeader();
-        while($records = $this->getRecords($params)) {
+        while($records = $this->getRecords($findParams)) {
             $this->writeRecords($records, $fields);
         }
-        $this->flushDiskBuffer();
-        exit();
+        if ($download) {
+            $this->flushDiskBuffer();
+            return true;
+        }
+        else {
+            $this->closeDiskBuffer();
+            return $this->diskBufferPath;
+        }
     }
 
 /**
@@ -146,6 +161,22 @@ class CsvExportComponent extends Component {
     }
 
 /**
+ * Close the disk buffer.
+ * 
+ * @access private
+ * @return boolean success
+ */
+    private function closeDiskBuffer() {
+        if ($this->diskBufferPath === null || $this->diskBuffer === null) {
+            throw new InternalErrorException('No disk buffer to close');;
+        }
+        if (!fclose($this->diskBuffer)) {
+            throw new InternalErrorException('Could not close disk buffer');
+        }
+        return true;
+    }
+
+/**
  * Close then write contents of CSV export to output buffer. Unlink
  * buffer file on success.
  *
@@ -153,11 +184,12 @@ class CsvExportComponent extends Component {
  * @return boolean success
  */
     private function flushDiskBuffer() {
-        if ($this->diskBufferPath === null || $this->diskBuffer === null) {
-            return false;
+        $this->closeDiskBuffer();
+        if ($this->diskBufferPath === null) {
+            throw new InternalErrorException('No disk buffer to flush');
         }
-        if (!fclose($this->diskBuffer) || !readfile($this->diskBufferPath)) {
-            throw new InternalErrorException('Could not write disk buffer to output buffer');
+        if (readfile($this->diskBufferPath) === false) {
+            throw new InternalErrorException('Could not write disk buffer to PHP output buffer');
         }
         if (!unlink($this->diskBufferPath)) {
             throw new InternalErrorException('Could not clean up disk buffer');
@@ -247,7 +279,14 @@ class CsvExportComponent extends Component {
  *
  */
     public function setConditions($conditions) {
-        $this->conditions = $conditions;
+        if (is_array($conditions)) {
+            $this->conditions = $conditions;
+        } else {
+            throw new Exception("setConditions requires an array");
+        }
+    }
+    public function getConditions(){ 
+        return $this->conditions; 
     }
 
 /**
@@ -255,7 +294,14 @@ class CsvExportComponent extends Component {
  *
  */
     public function setFields($fields) {
-        $this->fields = $fields;
+        if (is_array($fields)) {
+            $this->fields = $fields;
+        } else {
+            throw new Exception("setFields requires an array");
+        }
+    }
+    public function getFields(){ 
+        return $this->fields; 
     }
 
 /**
@@ -276,7 +322,14 @@ class CsvExportComponent extends Component {
  * @return void
  */
     public function setRecordProcessorCallback($callback) {
-        $this->callback = $callback;
+        if (is_callable($callback)) {
+            $this->callback = $callback;
+        } else {
+            throw new Exception("Callback is not callable");
+        }
+    }
+    public function getRecordProcessorCallback() {
+        return $this->callback;
     }
 
 /**
@@ -326,128 +379,6 @@ class CsvExportComponent extends Component {
             unset($models[$key]);
         }
         return $models;
-    }
-
-}
-
-
-/**
- * Handles normalisation of field specifications and humanisation
- * of field names where necessary.
- *
- * @author bgraham
- */
-class Field extends Object {
-
-/**
- * Field specification as provided to constructor
- *
- * @var String
- */
-    private $field = null;
-
-/**
- * Human-readable title of field, potentially derived from
- * the machine-readable form of the field.
- *
- * @var String
- */
-    private $title = null;
-
-/**
- * The model to use in the field specification if none is
- * present.
- *
- * @var mixed
- */
-    private $defaultModel = null;
-
-/**
- * Constructor.
- *
- * @param String $field CakePHP field specification
- * @param String $title optional human-readable title for this field.
- * @return instance of self
- */
-    public function Field($field, $title=null) {
-        $this->field = $field;
-        $this->title = $title;
-        return $this;
-    }
-
-/**
- * Sets the default model for this Field
- *
- * @param String $model Model name, e.g. "Product"
- */
-    public function setDefaultModel($model) {
-        $this->defaultModel = $model;
-        return $this;
-    }
-
-/**
- * Return a field formatted like "Model.column"
- *
- * @return String
- */
-    public function getField() {
-        return $this->normalise($this->field);
-    }
-
-/**
- * Return a human-readable field title like "Column"
- *
- * @return String
- */
-    public function getTitle() {
-        if ($this->title !== null) {
-            return $this->title;
-        }
-        return Inflector::humanize($this->getColumn());
-    }
-
-/**
- * Return the model of this field's specification, e.g.
- * "Model" from "Model.column"
- *
- * @return String
- */
-    public function getModel() {
-        list($model, $column) = explode('.', $this->getField());
-        return $model;
-    }
-
-/**
- * Return the model of this field's specification, e.g.
- * "column" from "Model.column"
- *
- * @return String
- */
-    public function getColumn() {
-        list($model, $column) = explode('.', $this->getField());
-        return $column;
-    }
-
-/**
- * Take field specifications in either 'Model.column' or plain
- * 'column' format, and normalise them to 'Model.column' format.
- *
- * @param String $field un-normalised field specification
- * @return void
- */
-    private function normalise($field) {
-        $hasModel = (strpos($field, '.') !== false);
-
-        if ($hasModel === false && $this->defaultModel === null) {
-            throw new Exception("Field has no model and no default provided");
-        }
-        elseif ($hasModel === false) {
-            $model = $this->defaultModel;
-        }
-        elseif ($hasModel === true) {
-            list($model, $field) = explode('.', $field);
-        }
-        return "{$model}.{$field}";
     }
 
 }
